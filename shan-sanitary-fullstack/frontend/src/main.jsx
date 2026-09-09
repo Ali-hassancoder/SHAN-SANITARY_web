@@ -2,9 +2,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/layout/Navbar";
-import Footer from "./components/layout/footer";
+import Footer from "./components/layout/Footer";
 import Login from "./pages/Login";
-import Signup from "./pages/signup";
+import Signup from "./pages/Signup";
 
 // Placeholder pages until Phase 9+ builds them out — kept intentionally
 // minimal here, not fake: they render real, honest "coming soon" content

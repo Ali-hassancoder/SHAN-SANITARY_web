@@ -1,5 +1,6 @@
 import Product from "../models/Product.js";
 import AppError from "../utils/AppError.js";
+import { getSettings } from "./settingService.js";
 
 export const decrementStock = async (items, session) => {
   for (const item of items) {
@@ -24,14 +25,20 @@ export const restockItems = async (items, session) => {
   }
 };
 
-// Read the threshold at call time, not at module-load time — avoids any
-// dependency on exactly when dotenv.config() finishes relative to this
-// file being imported.
-const getLowStockThreshold = () => Number(process.env.INVENTORY_LOW_STOCK_THRESHOLD) || 5;
+// UPDATED (Phase 13): the threshold now comes from the database via
+// settingsService, falling back to the .env value only if no settings
+// document exists yet (e.g. right after a fresh deploy, before any root
+// admin has visited the Settings page). This is what makes Section 25's
+// "manage critical system settings" a real, persisted, admin-editable
+// value instead of a value only changeable by editing .env and restarting
+// the server.
+const getLowStockThreshold = async () => {
+  const settings = await getSettings();
+  return settings.lowStockThreshold ?? Number(process.env.INVENTORY_LOW_STOCK_THRESHOLD)  ;
+};
 
-// @used by GET /api/inventory/summary (Section 18's dashboard requirement)
 export const getInventorySummary = async () => {
-  const threshold = getLowStockThreshold();
+  const threshold = await getLowStockThreshold();
 
   const [totalProducts, outOfStock, lowStock, inStock] = await Promise.all([
     Product.countDocuments({ isActive: true }),
@@ -44,7 +51,7 @@ export const getInventorySummary = async () => {
 };
 
 export const getLowStockProducts = async ({ skip, limit }) => {
-  const threshold = getLowStockThreshold();
+  const threshold = await getLowStockThreshold();
   const filter = { isActive: true, stock: { $gt: 0, $lte: threshold } };
 
   const [products, total] = await Promise.all([

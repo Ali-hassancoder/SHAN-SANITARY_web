@@ -58,8 +58,11 @@ const Navbar = () => {
               </>
             )}
             {user ? (
-              <div className="hidden md:flex items-center gap-3">
-                <Link to="/profile" className="flex items-center gap-1 text-sm">
+              <div className="hidden md:flex items-center gap-3 text-sm">
+                <Link to="/orders" className="hover:text-wine-light transition-colors">
+                  Orders
+                </Link>
+                <Link to="/profile" className="flex items-center gap-1">
                   <User size={18} /> {user.name.split(" ")[0]}
                 </Link>
                 <button
@@ -98,6 +101,11 @@ const Navbar = () => {
             {isAdmin && (
               <Link to="/admin" onClick={() => setMobileOpen(false)} className="block text-sm">
                 Dashboard
+              </Link>
+            )}
+            {user && (
+              <Link to="/orders" onClick={() => setMobileOpen(false)} className="block text-sm">
+                Orders
               </Link>
             )}
             {user ? (

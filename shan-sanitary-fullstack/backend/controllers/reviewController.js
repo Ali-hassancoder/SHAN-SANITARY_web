@@ -29,8 +29,39 @@ export const getProductReviews = async (req, res, next) => {
   }
 };
 
+// @route  GET /api/reviews/admin
+// @access Protected + admin/root_admin — EVERY review, approved or hidden,
+// across every product. This is the moderation queue Section 19/22 needs;
+// it didn't exist in Phase 7 because that phase only built the per-product
+// public view.
+export const getAllReviewsAdmin = async (req, res, next) => {
+  try {
+    const { page, limit, skip } = getPagination(req.query);
+    const filter = {};
+    if (req.query.status === "approved") filter.isApproved = true;
+    if (req.query.status === "hidden") filter.isApproved = false;
+
+    const [reviews, total] = await Promise.all([
+      Review.find(filter)
+        .populate("customer", "name email")
+        .populate("product", "name slug")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Review.countDocuments(filter),
+    ]);
+
+    return success(res, 200, "Reviews retrieved", {
+      reviews,
+      pagination: buildPaginationMeta(total, page, limit),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @route  GET /api/reviews/mine/eligible/:productId
-// @access Protected — lets the frontend decide whether to show "Write a Review"
+// @access Protected
 export const checkReviewEligibility = async (req, res, next) => {
   try {
     const eligibleOrder = await reviewService.getEligibleOrderForReview(

@@ -15,6 +15,11 @@ import couponRoutes from "./routes/couponRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import customerRoutes from "./routes/customerRoutes.js";
+import settingsRoutes from "./routes/settingRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import auditLogRoutes from "./routes/auditLogRoutes.js";
 
 const app = express();
 
@@ -44,6 +49,11 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/admins", adminRoutes);
+app.use("/api/audit-logs", auditLogRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

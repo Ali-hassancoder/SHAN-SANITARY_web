@@ -10,14 +10,10 @@ import { logAction } from "../services/auditService.js";
 // @access Public
 export const getProducts = async (req, res, next) => {
   try {
-    // Allow filtering by category SLUG in the URL (frontend-friendly) —
-    // resolve it to an _id before handing off to the shared filter builder.
     const queryForFilter = { ...req.query };
     if (req.query.category) {
       const category = await Category.findOne({ slug: req.query.category, isActive: true });
       if (!category) {
-        // A nonexistent category slug should return an empty result set,
-        // not an error — this is a normal "no products" case, not a bug.
         return success(res, 200, "Products retrieved", {
           products: [],
           pagination: buildPaginationMeta(0, 1, 20),
@@ -30,7 +26,6 @@ export const getProducts = async (req, res, next) => {
     const hasSearch = Boolean(req.query.search);
     const sort = buildProductSort(req.query.sort, hasSearch);
     const { page, limit, skip } = getPagination(req.query);
-
     const projection = hasSearch ? { score: { $meta: "textScore" } } : {};
 
     const [products, total] = await Promise.all([
@@ -51,6 +46,70 @@ export const getProducts = async (req, res, next) => {
   }
 };
 
+// @route  GET /api/products/admin
+// @access Protected + admin/root_admin — ALL products (active + inactive),
+// for the admin management table (Section 22). This is intentionally
+// separate from getProducts: mixing an "isActive filter toggle" into the
+// public endpoint would mean adding admin-only conditional logic to a route
+// anyone can hit, which is exactly the kind of thing Section 41 asks us to
+// avoid ("keep controllers focused").
+export const getAllProductsAdmin = async (req, res, next) => {
+  try {
+    const { page, limit, skip } = getPagination(req.query);
+    const filter = {};
+
+    if (req.query.category) filter.category = req.query.category;
+    if (req.query.status === "active") filter.isActive = true;
+    if (req.query.status === "inactive") filter.isActive = false;
+    if (req.query.search) {
+      filter.$or = [
+        { name: { $regex: req.query.search, $options: "i" } },
+        { sku: { $regex: req.query.search, $options: "i" } },
+      ];
+    }
+
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .populate("category", "name slug")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Product.countDocuments(filter),
+    ]);
+
+    return success(res, 200, "Products retrieved", {
+      products,
+      pagination: buildPaginationMeta(total, page, limit),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @route  PATCH /api/products/:id/reactivate
+// @access Protected + admin/root_admin
+export const reactivateProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return fail(res, 404, "Product not found");
+
+    product.isActive = true;
+    await product.save();
+
+    await logAction({
+      actor: req.user._id,
+      action: "PRODUCT_REACTIVATED",
+      targetModel: "Product",
+      target: product._id,
+      metadata: { name: product.name },
+    });
+
+    return success(res, 200, "Product reactivated successfully", product);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @route  GET /api/products/slug/:slug
 // @access Public
 export const getProductBySlug = async (req, res, next) => {
@@ -59,9 +118,7 @@ export const getProductBySlug = async (req, res, next) => {
       "category",
       "name slug"
     );
-
     if (!product) return fail(res, 404, "Product not found");
-
     return success(res, 200, "Product retrieved", product);
   } catch (error) {
     next(error);
@@ -69,7 +126,7 @@ export const getProductBySlug = async (req, res, next) => {
 };
 
 // @route  GET /api/products/:slug/related
-// @access Public — same category, excluding itself
+// @access Public
 export const getRelatedProducts = async (req, res, next) => {
   try {
     const product = await Product.findOne({ slug: req.params.slug, isActive: true });
@@ -90,7 +147,7 @@ export const getRelatedProducts = async (req, res, next) => {
 };
 
 // @route  GET /api/products/:id
-// @access Protected + admin/root_admin — fetch raw product (any status) for editing
+// @access Protected + admin/root_admin
 export const getProductById = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id).populate("category", "name slug");
@@ -155,7 +212,7 @@ export const updateProduct = async (req, res, next) => {
     const beforeSnapshot = { price: product.price, stock: product.stock, isActive: product.isActive };
 
     Object.assign(product, req.body);
-    await product.save({ validateBeforeSave: true }); // runs schema validators, e.g. salePrice < price
+    await product.save({ validateBeforeSave: true });
 
     await logAction({
       actor: req.user._id,
@@ -181,7 +238,6 @@ export const deleteProduct = async (req, res, next) => {
     const product = await Product.findById(req.params.id);
     if (!product) return fail(res, 404, "Product not found");
 
-    // SOFT delete, deliberately — see explanation below.
     product.isActive = false;
     await product.save();
 
